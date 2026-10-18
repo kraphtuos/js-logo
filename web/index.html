@@ -8,10 +8,21 @@
       content="Scan and create ringcodes: short words written as concentric gapped rings, like the Jane Street logo (JSC). Runs in your browser with Rust and WebAssembly."
     />
     <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Ringcode" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>Ringcode</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
     <link data-trunk rel="rust" href="Cargo.toml" data-wasm-opt="3" />
     <link data-trunk rel="css" href="style.css" />
     <link data-trunk rel="icon" href="favicon.svg" />
+    <link data-trunk rel="copy-file" href="manifest.webmanifest" />
+    <link data-trunk rel="copy-file" href="sw.js" />
+    <link data-trunk rel="copy-dir" href="icons" />
   </head>
   <body>
     <header class="top">
