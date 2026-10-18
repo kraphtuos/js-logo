@@ -151,7 +151,8 @@ fn start() -> Result<(), JsValue> {
         download_png: by_id("download-png")?,
         test_scan: by_id("test-scan")?,
     };
-    let mark_options = SvgOptions { foreground: "currentColor".into(), background: None, margin: 0.0 };
+    let mark_options =
+        SvgOptions { foreground: "currentColor".into(), background: None, margin: 0.0, ..SvgOptions::default() };
     by_id::<HtmlElement>("brand-mark")?.set_inner_html(&ringcode::svg("RC", &mark_options).expect("valid word"));
     by_id::<HtmlElement>("about-dial")?.set_inner_html(&dial::svg("JSC"));
 

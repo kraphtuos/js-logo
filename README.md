@@ -57,7 +57,7 @@ cargo test -p ringcode                                   # unit + round-trip tes
 cargo run -p ringcode --example decode_file -- photo.jpg # decode images from the CLI
 cargo run -p ringcode --example svg -- HELLO > hello.svg # make a code
 
-cargo run -p ringcode --example web_icons -- web/icons   # regenerate the app icons
+cargo run -p ringcode --example web_icons -- web         # regenerate icon.svg and app icons
 
 cd web && trunk serve --open                             # app at http://127.0.0.1:8080
 ```

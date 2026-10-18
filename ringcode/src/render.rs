@@ -13,11 +13,13 @@ pub struct SvgOptions {
     pub background: Option<String>,
     /// Empty margin around the code, as a fraction of the outer radius.
     pub margin: f64,
+    /// Corner radius of the background, as a fraction of its width (0 = square).
+    pub corner_radius: f64,
 }
 
 impl Default for SvgOptions {
     fn default() -> Self {
-        SvgOptions { foreground: "#000".into(), background: Some("#fff".into()), margin: 0.2 }
+        SvgOptions { foreground: "#000".into(), background: Some("#fff".into()), margin: 0.2, corner_radius: 0.0 }
     }
 }
 
@@ -49,12 +51,16 @@ pub fn svg(word: &str, opts: &SvgOptions) -> Result<String, WordError> {
     if let Some(bg) = &opts.background {
         let _ = write!(
             out,
-            r#"<rect x="{:.3}" y="{:.3}" width="{:.3}" height="{:.3}" fill="{bg}"/>"#,
+            r#"<rect x="{:.3}" y="{:.3}" width="{:.3}" height="{:.3}""#,
             -half,
             -half,
             2.0 * half,
             2.0 * half
         );
+        if opts.corner_radius > 0.0 {
+            let _ = write!(out, r#" rx="{:.3}""#, opts.corner_radius * 2.0 * half);
+        }
+        let _ = write!(out, r#" fill="{bg}"/>"#);
     }
     let _ = write!(out, r#"<g fill="{}">"#, opts.foreground);
     for (i, &slot) in slots.iter().enumerate() {
@@ -197,7 +203,10 @@ mod tests {
     fn svg_has_one_path_per_ring() {
         let s = svg("JSC", &SvgOptions::default()).unwrap();
         assert_eq!(s.matches("<path").count(), 3);
+        assert!(!s.contains("rx="), "square by default");
         assert!(svg("J", &SvgOptions::default()).is_err());
+        let rounded = svg("JSC", &SvgOptions { corner_radius: 0.25, ..SvgOptions::default() }).unwrap();
+        assert!(rounded.contains("rx="));
     }
 
     #[test]

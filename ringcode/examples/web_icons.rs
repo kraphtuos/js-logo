@@ -1,4 +1,5 @@
-//! Generate the web app's PNG icons: `cargo run -p ringcode --example web_icons -- web/icons`
+//! Generate the web app's icons (icon.svg and icons/*.png):
+//! `cargo run -p ringcode --example web_icons -- web`
 
 use ringcode::render::{rasterize, Affine};
 use ringcode::spec;
@@ -49,10 +50,21 @@ fn icon(size: usize, layout: &Layout) -> image::RgbaImage {
     })
 }
 
+/// Corner radius of the rounded icons, as a fraction of their size.
+const CORNER: f64 = 0.22;
+
 fn main() {
-    let dir = std::path::PathBuf::from(std::env::args().nth(1).unwrap_or_else(|| "web/icons".into()));
+    let web = std::path::PathBuf::from(std::env::args().nth(1).unwrap_or_else(|| "web".into()));
+    let dir = web.join("icons");
     std::fs::create_dir_all(&dir).expect("create output directory");
-    let any = Layout { code: 0.36, corner: Some(0.22) };
+
+    // Favicon / bookmark icon, rounded like the "any" PNGs.
+    let options = ringcode::SvgOptions { corner_radius: CORNER, ..ringcode::SvgOptions::default() };
+    let path = web.join("icon.svg");
+    std::fs::write(&path, ringcode::svg(WORD, &options).expect("valid word") + "\n").expect("write icon.svg");
+    println!("wrote {}", path.display());
+
+    let any = Layout { code: 0.36, corner: Some(CORNER) };
     // Maskable icons may be cropped to a circle of radius 0.4; keep the code well inside it.
     let maskable = Layout { code: 0.3, corner: None };
     // iOS rounds the corners itself and does not want transparency.

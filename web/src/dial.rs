@@ -52,8 +52,11 @@ pub fn svg(word: &str) -> String {
 
     // The code itself, at outer ring radius 100.
     let edge = spec::outer_edge(n) * 100.0;
-    let code = ringcode::svg(word, &SvgOptions { foreground: "currentColor".into(), background: None, margin: 0.0 })
-        .expect("valid word");
+    let code = ringcode::svg(
+        word,
+        &SvgOptions { foreground: "currentColor".into(), background: None, margin: 0.0, ..SvgOptions::default() },
+    )
+    .expect("valid word");
     let code = code.replacen(
         "<svg ",
         &format!(r#"<svg x="{:.3}" y="{:.3}" width="{:.3}" height="{:.3}" "#, -edge, -edge, 2.0 * edge, 2.0 * edge),
