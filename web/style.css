@@ -76,10 +76,6 @@ main {
   padding-right: max(16px, env(safe-area-inset-right));
 }
 
-.about {
-  padding-bottom: max(48px, env(safe-area-inset-bottom));
-}
-
 .brand {
   display: flex;
   align-items: center;
@@ -369,9 +365,54 @@ button.quiet {
   border-radius: 8px;
 }
 
-.about h2 {
-  font-size: 1.1rem;
-  margin: 0 0 12px;
+.about {
+  margin-top: 24px;
+  padding-bottom: max(48px, env(safe-area-inset-bottom));
+  color: var(--muted);
+}
+
+.about summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 42px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.about summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Chevron that turns when the section opens. */
+.about summary::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.15s;
+}
+
+.about[open] summary::before {
+  transform: rotate(45deg);
+}
+
+.about summary:hover {
+  color: var(--text);
+}
+
+.about summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.about[open] .about-body {
+  margin-top: 8px;
+  color: var(--text);
 }
 
 .about-body {
