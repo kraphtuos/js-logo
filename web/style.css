@@ -220,6 +220,77 @@ button:disabled {
   font-size: 0.95rem;
 }
 
+.orientation {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.orientation[hidden] {
+  display: none;
+}
+
+.orientation-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.orientation-label {
+  font-weight: 600;
+}
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stepper button {
+  width: 42px;
+  padding: 0;
+  font-size: 1.2rem;
+}
+
+.stepper output {
+  min-width: 9ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+button.quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.orientation-hint {
+  margin: 10px 0 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.readings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  min-height: 34px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font: 600 0.95rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.08em;
+}
+
+.chip[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
 .create-row {
   display: flex;
   flex-wrap: wrap;

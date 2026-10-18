@@ -15,7 +15,7 @@ use wasm_bindgen_futures::{spawn_local, JsFuture};
 use web_sys::{
     CanvasRenderingContext2d, ClipboardEvent, Document, DragEvent, Event, EventTarget, File, HtmlAnchorElement,
     HtmlButtonElement, HtmlCanvasElement, HtmlElement, HtmlImageElement, HtmlInputElement, HtmlVideoElement, ImageData,
-    MediaStream, MediaStreamConstraints, MediaStreamTrack, Url,
+    KeyboardEvent, MediaStream, MediaStreamConstraints, MediaStreamTrack, Url,
 };
 
 /// Camera frames are scaled to at most this size (long side) before decoding.
@@ -85,6 +85,12 @@ struct Elements {
     file: HtmlInputElement,
     result_text: HtmlElement,
     result_detail: HtmlElement,
+    orientation: HtmlElement,
+    turn_left: HtmlButtonElement,
+    turn_right: HtmlButtonElement,
+    turn_reset: HtmlButtonElement,
+    turn_value: HtmlElement,
+    readings: HtmlElement,
     word: HtmlInputElement,
     word_error: HtmlElement,
     show_dial: HtmlInputElement,
@@ -104,6 +110,15 @@ struct App {
     /// Incremented per camera start so a stale frame loop can tell it should stop.
     camera_session: u32,
     last_text: Option<String>,
+    /// Manual orientation: the code's top is this many slots clockwise of
+    /// where it appears (see `Detection::reading`).
+    turns: i32,
+    /// Codes found in the current still image or latest camera frame.
+    found: Vec<Detection>,
+    /// The current still image without overlay, for redrawing after a turn.
+    still: Option<ImageData>,
+    /// What the readings list currently shows, to avoid rebuilding it every frame.
+    readings_key: String,
 }
 
 type Shared = Rc<RefCell<App>>;
@@ -122,6 +137,12 @@ fn start() -> Result<(), JsValue> {
         file: by_id("file")?,
         result_text: by_id("result-text")?,
         result_detail: by_id("result-detail")?,
+        orientation: by_id("orientation")?,
+        turn_left: by_id("turn-left")?,
+        turn_right: by_id("turn-right")?,
+        turn_reset: by_id("turn-reset")?,
+        turn_value: by_id("turn-value")?,
+        readings: by_id("readings")?,
         word: by_id("word")?,
         word_error: by_id("word-error")?,
         show_dial: by_id("show-dial")?,
@@ -137,8 +158,19 @@ fn start() -> Result<(), JsValue> {
     let screen_ctx = context_2d(&el.screen)?;
     let work: HtmlCanvasElement = document().create_element("canvas")?.dyn_into()?;
     let work_ctx = context_2d(&work)?;
-    let app =
-        Rc::new(RefCell::new(App { el, screen_ctx, work, work_ctx, stream: None, camera_session: 0, last_text: None }));
+    let app = Rc::new(RefCell::new(App {
+        el,
+        screen_ctx,
+        work,
+        work_ctx,
+        stream: None,
+        camera_session: 0,
+        last_text: None,
+        turns: 0,
+        found: Vec::new(),
+        still: None,
+        readings_key: String::new(),
+    }));
     wire_events(&app);
     app.borrow().update_preview();
     Ok(())
@@ -192,6 +224,41 @@ fn wire_events(app: &Shared) {
             select_tab(&shared, true);
             load_file(&shared, file);
         }
+    });
+
+    let shared = app.clone();
+    on(&el.turn_left, "click", move |_: Event| shared.borrow_mut().turn_by(-1));
+    let shared = app.clone();
+    on(&el.turn_right, "click", move |_: Event| shared.borrow_mut().turn_by(1));
+    let shared = app.clone();
+    on(&el.turn_reset, "click", move |_: Event| shared.borrow_mut().set_turns(0));
+    let shared = app.clone();
+    on(&el.readings, "click", move |e: Event| {
+        let chip = e
+            .target()
+            .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
+            .and_then(|t| t.closest("[data-turns]").ok().flatten());
+        if let Some(turns) = chip.and_then(|c| c.get_attribute("data-turns")).and_then(|t| t.parse().ok()) {
+            shared.borrow_mut().set_turns(turns);
+        }
+    });
+    let shared = app.clone();
+    on(&document(), "keydown", move |e: KeyboardEvent| {
+        let typing = e.target().and_then(|t| t.dyn_into::<web_sys::Element>().ok()).is_some_and(|t| {
+            let tag = t.tag_name();
+            tag == "INPUT" || tag == "TEXTAREA"
+        });
+        let mut a = shared.borrow_mut();
+        if typing || e.ctrl_key() || e.meta_key() || e.alt_key() || a.el.view_scan.hidden() || a.el.orientation.hidden()
+        {
+            return;
+        }
+        match e.key().as_str() {
+            "[" | "ArrowLeft" => a.turn_by(-1),
+            "]" | "ArrowRight" => a.turn_by(1),
+            _ => return,
+        }
+        e.prevent_default();
     });
 
     let shared = app.clone();
@@ -273,6 +340,7 @@ async fn start_camera(app: &Shared) -> Result<(), JsValue> {
     let session = {
         let mut a = app.borrow_mut();
         a.stream = Some(stream);
+        a.still = None;
         a.camera_session += 1;
         a.el.camera.set_text_content(Some("Stop camera"));
         a.el.placeholder.set_hidden(true);
@@ -406,9 +474,9 @@ impl App {
         }
         self.work_ctx.draw_image_with_html_video_element_and_dw_and_dh(video, 0.0, 0.0, pw as f64, ph as f64)?;
         let pixels = self.work_ctx.get_image_data(0.0, 0.0, pw as f64, ph as f64)?.data();
-        let found = ringcode::decode_rgba(&pixels, pw as usize, ph as usize);
-        draw_overlay(&self.screen_ctx, &found, 1.0 / scale);
-        self.report(&found, true);
+        self.found = ringcode::decode_rgba(&pixels, pw as usize, ph as usize);
+        draw_overlay(&self.screen_ctx, &self.found, 1.0 / scale, self.turns);
+        self.report(true);
         Ok(())
     }
 
@@ -432,44 +500,103 @@ impl App {
             return self.show_message("Could not draw image", &describe(&e));
         }
         self.el.placeholder.set_hidden(true);
-        let pixels = match ctx.get_image_data(0.0, 0.0, dw, dh) {
-            Ok(data) => data.data(),
+        let image = match ctx.get_image_data(0.0, 0.0, dw, dh) {
+            Ok(image) => image,
             Err(e) => return self.show_message("Could not read image", &describe(&e)),
         };
-        let found = ringcode::decode_rgba(&pixels, dw as usize, dh as usize);
-        draw_overlay(ctx, &found, 1.0);
-        self.report(&found, false);
+        self.found = ringcode::decode_rgba(&image.data(), dw as usize, dh as usize);
+        self.still = Some(image);
+        // Each image has its own orientation.
+        self.turns = 0;
+        self.redraw_still();
     }
 
-    fn report(&mut self, found: &[Detection], live: bool) {
-        if found.is_empty() {
+    /// Repaints the current still image and its overlay, and reports it.
+    fn redraw_still(&mut self) {
+        let Some(image) = &self.still else { return };
+        let _ = self.screen_ctx.put_image_data(image, 0.0, 0.0);
+        draw_overlay(&self.screen_ctx, &self.found, 1.0, self.turns);
+        self.report(false);
+    }
+
+    fn set_turns(&mut self, turns: i32) {
+        self.turns = turns.rem_euclid(ringcode::spec::SLOTS as i32);
+        if self.stream.is_none() {
+            self.redraw_still();
+        } else {
+            // The next camera frame redraws the overlay; update the text now.
+            self.report(true);
+        }
+    }
+
+    fn turn_by(&mut self, delta: i32) {
+        self.set_turns(self.turns + delta);
+    }
+
+    fn report(&mut self, live: bool) {
+        if self.found.is_empty() {
             if !live {
                 self.last_text = None;
-                self.set_result("—", "No ringcode found. Codes need to be roughly upright and in focus.");
+                self.el.orientation.set_hidden(true);
+                self.set_result("—", "No ringcode found. Make sure the whole code is in view and in focus.");
             }
             // While scanning live, keep showing the last code read.
             return;
         }
-        let text = found.iter().map(|d| d.text.as_str()).collect::<Vec<_>>().join(" · ");
-        let d = &found[0];
-        let rotation = match d.rotation_deg {
+        let turns = self.turns;
+        let text = self.found.iter().map(|d| d.reading(turns)).collect::<Vec<_>>().join(" · ");
+        let d = &self.found[0];
+        let rotation = match total_rotation(d, turns) {
             r if r.abs() < 1.0 => "upright".to_string(),
             r if r > 0.0 => format!("turned right {r:.0}°"),
             r => format!("turned left {:.0}°", -r),
         };
-        let mut detail = format!("{} rings · {rotation}", d.rings.len());
+        let manual = if turns == 0 { "" } else { " (set by hand)" };
+        let mut detail = format!("{} rings · {rotation}{manual}", d.rings.len());
         if d.perspective {
             detail.push_str(" · perspective corrected");
         }
         detail.push_str(if d.max_residual_deg < 3.0 { " · clean read" } else { " · marginal read" });
-        if found.len() > 1 {
-            detail = format!("{} codes · first: {detail}", found.len());
+        if self.found.len() > 1 {
+            detail = format!("{} codes · first: {detail}", self.found.len());
         }
         if live && self.last_text.as_deref() != Some(text.as_str()) {
             let _ = web_sys::window().expect("window").navigator().vibrate_with_duration(40);
         }
         self.set_result(&text, &detail);
         self.last_text = Some(text);
+        self.show_orientation();
+    }
+
+    /// Updates the orientation controls and the list of all readings of the first code.
+    fn show_orientation(&mut self) {
+        let Some(d) = self.found.first() else { return };
+        self.el.orientation.set_hidden(false);
+        let label = match total_rotation(d, self.turns) {
+            _ if self.turns == 0 => "As held".to_string(),
+            deg if deg >= 0.0 => format!("Top {deg:.0}° right"),
+            deg => format!("Top {:.0}° left", -deg),
+        };
+        self.el.turn_value.set_text_content(Some(&label));
+        self.el.turn_reset.set_disabled(self.turns == 0);
+
+        let key = format!("{}@{}", d.text, self.turns);
+        if key == self.readings_key {
+            return;
+        }
+        let chips: String = d
+            .readings()
+            .iter()
+            .enumerate()
+            .map(|(t, word)| {
+                let pressed = t as i32 == self.turns;
+                format!(
+                    r#"<button type="button" class="chip" data-turns="{t}" aria-pressed="{pressed}">{word}</button>"#
+                )
+            })
+            .collect();
+        self.el.readings.set_inner_html(&chips);
+        self.readings_key = key;
     }
 
     /// The word typed in the Create tab, cleaned up to letters only.
@@ -511,8 +638,9 @@ impl App {
     }
 }
 
-/// Outlines each code's rings, marks each gap with its letter and labels the code.
-fn draw_overlay(ctx: &CanvasRenderingContext2d, found: &[Detection], scale: f64) {
+/// Outlines each code's rings, marks each gap with its letter (after `turns`
+/// manual turns), marks the code's top and labels the code.
+fn draw_overlay(ctx: &CanvasRenderingContext2d, found: &[Detection], scale: f64, turns: i32) {
     for d in found {
         let o = d.outer();
         let outer = Ellipse { cx: o.cx * scale, cy: o.cy * scale, a: o.a * scale, b: o.b * scale, angle: o.angle };
@@ -531,23 +659,43 @@ fn draw_overlay(ctx: &CanvasRenderingContext2d, found: &[Detection], scale: f64)
         ctx.set_text_baseline("middle");
         let bubble = (r * 0.08).max(10.0);
         ctx.set_font(&format!("700 {:.0}px system-ui, sans-serif", bubble * 1.3));
-        for ring in &d.rings {
+        let text = d.reading(turns);
+        for (ring, letter) in d.rings.iter().zip(text.chars()) {
             let (x, y) = (ring.gap_point.0 * scale, ring.gap_point.1 * scale);
             ctx.begin_path();
             let _ = ctx.arc(x, y, bubble, 0.0, TAU);
             ctx.set_fill_style_str(ACCENT);
             ctx.fill();
             ctx.set_fill_style_str("#fff");
-            let _ = ctx.fill_text(&ring.letter.to_string(), x, y + bubble * 0.08);
+            let _ = ctx.fill_text(&letter.to_string(), x, y + bubble * 0.08);
         }
 
-        // Label just above the code.
+        // Arrow just outside the outer ring pointing at the code's top (where A sits).
+        let top = d.rotation_deg + turns as f64 * ringcode::spec::SLOT_DEG;
+        let edge = ringcode::spec::outer_edge(d.rings.len());
+        let at = |deg: f64, radius: f64| {
+            let (x, y) = d.point_at(deg, radius);
+            (x * scale, y * scale)
+        };
+        let (tip, left, right) = (at(top, edge + 0.3), at(top - 6.0, edge + 0.08), at(top + 6.0, edge + 0.08));
+        ctx.set_fill_style_str(ACCENT);
+        ctx.begin_path();
+        ctx.move_to(tip.0, tip.1);
+        ctx.line_to(left.0, left.1);
+        ctx.line_to(right.0, right.1);
+        ctx.close_path();
+        ctx.fill();
+
+        // Label above or below the code, on the side away from the arrow.
         let size = (r * 0.2).max(16.0);
         ctx.set_font(&format!("700 {size:.0}px ui-monospace, SFMono-Regular, Menlo, monospace"));
-        let width = ctx.measure_text(&d.text).map(|m| m.width()).unwrap_or(size * d.text.len() as f64);
+        let width = ctx.measure_text(&text).map(|m| m.width()).unwrap_or(size * text.len() as f64);
         let (pad_x, pad_y) = (size * 0.45, size * 0.3);
         let half_height = top_extent(&outer);
-        let (lx, ly) = (outer.cx, (outer.cy - half_height - line * 3.0 - size / 2.0 - pad_y).max(size / 2.0 + pad_y));
+        let canvas_height = ctx.canvas().map(|c| c.height() as f64).unwrap_or(f64::MAX);
+        let offset = half_height + line * 3.0 + size / 2.0 + pad_y;
+        let ly = if tip.1 > outer.cy { outer.cy - offset } else { outer.cy + offset };
+        let (lx, ly) = (outer.cx, ly.clamp(size / 2.0 + pad_y, (canvas_height - size / 2.0 - pad_y).max(0.0)));
         ctx.set_fill_style_str(ACCENT);
         ctx.begin_path();
         let _ = ctx.round_rect_with_f64(
@@ -559,7 +707,18 @@ fn draw_overlay(ctx: &CanvasRenderingContext2d, found: &[Detection], scale: f64)
         );
         ctx.fill();
         ctx.set_fill_style_str("#fff");
-        let _ = ctx.fill_text(&d.text, lx, ly + size * 0.05);
+        let _ = ctx.fill_text(&text, lx, ly + size * 0.05);
+    }
+}
+
+/// The code's rotation from upright after `turns` manual turns, degrees
+/// clockwise in (-180, 180].
+fn total_rotation(d: &Detection, turns: i32) -> f64 {
+    let deg = (d.rotation_deg + turns as f64 * ringcode::spec::SLOT_DEG).rem_euclid(360.0);
+    if deg > 180.0 {
+        deg - 360.0
+    } else {
+        deg
     }
 }
 

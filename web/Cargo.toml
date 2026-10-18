@@ -36,6 +36,7 @@ features = [
   "HtmlImageElement",
   "HtmlInputElement",
   "HtmlVideoElement",
+  "KeyboardEvent",
   "ImageData",
   "MediaDevices",
   "MediaStream",
