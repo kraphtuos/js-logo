@@ -1,0 +1,11 @@
+[package]
+name = "ringcode"
+version = "0.1.0"
+description = "Encode and decode words as concentric gapped rings (the Jane Street logo reads JSC)"
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+image = { version = "0.24", default-features = false, features = ["png", "jpeg"] }
