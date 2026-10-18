@@ -187,6 +187,16 @@ fn start() -> Result<(), JsValue> {
     Ok(())
 }
 
+/// A short haptic tick where supported. iOS Safari has no Vibration API, and
+/// calling the missing method throws straight out of the camera frame loop
+/// (leaving the app state borrowed), so check for it first.
+fn vibrate(ms: u32) {
+    let navigator = web_sys::window().expect("window").navigator();
+    if Reflect::has(&navigator, &"vibrate".into()).unwrap_or(false) {
+        let _ = navigator.vibrate_with_duration(ms);
+    }
+}
+
 /// Registers sw.js for offline use. Service workers only exist in secure
 /// contexts (HTTPS or localhost), so this is skipped elsewhere.
 fn register_service_worker() {
@@ -587,7 +597,7 @@ impl App {
             detail = format!("{} codes · first: {detail}", self.found.len());
         }
         if live && self.last_text.as_deref() != Some(text.as_str()) {
-            let _ = web_sys::window().expect("window").navigator().vibrate_with_duration(40);
+            vibrate(40);
         }
         self.set_result(&text, &detail);
         self.last_text = Some(text);
