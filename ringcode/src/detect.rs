@@ -33,6 +33,8 @@ pub struct RingReading {
     pub gap_width_deg: f64,
     /// Centre of the gap on the ring's centreline, in image coordinates.
     pub gap_point: (f64, f64),
+    /// Slot the gap snapped to, assuming the code is upright (`A` = 0).
+    pub slot: u8,
     pub letter: char,
     /// Distance from the gap to its slot after removing the common rotation, degrees.
     pub residual_deg: f64,
@@ -41,6 +43,7 @@ pub struct RingReading {
 /// A decoded code.
 #[derive(Clone, Debug)]
 pub struct Detection {
+    /// The reading assuming the code is upright; see [`Detection::reading`].
     pub text: String,
     /// Rings from innermost to outermost.
     pub rings: Vec<RingReading>,
@@ -50,12 +53,50 @@ pub struct Detection {
     pub max_residual_deg: f64,
     /// Whether a significant perspective correction was applied.
     pub perspective: bool,
+    geometry: Geometry,
+}
+
+/// Maps the code's own frame back to image coordinates.
+#[derive(Clone, Copy, Debug)]
+struct Geometry {
+    view: View,
+    frame: Ellipse,
+    norm: f64,
+    scale: f64,
+    offset: f64,
 }
 
 impl Detection {
     /// The outermost ring's ellipse.
     pub fn outer(&self) -> &Ellipse {
         &self.rings.last().expect("detections have rings").ellipse
+    }
+
+    /// The reading if the code's top is actually `turns` slots clockwise of
+    /// where it appears to be (i.e. the code was rotated `turns` slots
+    /// clockwise from upright). Gaps always sit a whole number of slots
+    /// apart, so every rotation of a code reads as one of these 26 words.
+    pub fn reading(&self, turns: i32) -> String {
+        self.rings
+            .iter()
+            .map(|r| spec::slot_letter((r.slot as i32 - turns).rem_euclid(spec::SLOTS as i32) as u8))
+            .collect()
+    }
+
+    /// All 26 readings, indexed by `turns`.
+    pub fn readings(&self) -> Vec<String> {
+        (0..spec::SLOTS as i32).map(|t| self.reading(t)).collect()
+    }
+
+    /// Image point at `angle_deg` clockwise from the code's 12 o'clock and
+    /// `radius` (outer ring centreline = 1), following the code's tilt and
+    /// perspective.
+    pub fn point_at(&self, angle_deg: f64, radius: f64) -> (f64, f64) {
+        let g = &self.geometry;
+        let (r, t) = (radius * g.norm, angle_deg.to_radians());
+        let (fx, fy) = g.frame.from_unit(r * t.sin(), -r * t.cos());
+        let (x, y) = g.view.backward(fx, fy);
+        (x * g.scale + g.offset, y * g.scale + g.offset)
     }
 
     fn map_coords(&mut self, scale: f64, offset: f64) {
@@ -67,6 +108,9 @@ impl Detection {
             e.b *= scale;
             ring.gap_point = (ring.gap_point.0 * scale + offset, ring.gap_point.1 * scale + offset);
         }
+        let g = &mut self.geometry;
+        g.offset = g.offset * scale + offset;
+        g.scale *= scale;
     }
 }
 
@@ -312,6 +356,7 @@ fn analyze_ring(points: Vec<(f64, f64)>) -> Option<Ring> {
 /// scaled so the outer ring is about unit size, with perspective removed by
 /// sending the vanishing line `l0 x + l1 y + 1 = 0` to infinity. In this view
 /// the rings are concentric ellipses related to circles by an affine map.
+#[derive(Clone, Copy, Debug)]
 struct View {
     cx: f64,
     cy: f64,
@@ -600,6 +645,7 @@ fn read_code(
             gap_deg: centre,
             gap_width_deg: width,
             gap_point: view.backward(gx, gy),
+            slot,
             letter,
             residual_deg: residual,
         });
@@ -613,6 +659,7 @@ fn read_code(
         rotation_deg: rotation,
         max_residual_deg: worst,
         perspective: view.corrects_perspective(),
+        geometry: Geometry { view: *view, frame: *frame, norm, scale: 1.0, offset: 0.0 },
     })
 }
 

@@ -166,6 +166,48 @@ fn decodes_under_strong_perspective() {
 }
 
 #[test]
+fn manual_turns_recover_rotated_codes() {
+    let slots = parse_word("JSC").unwrap();
+    let slot_deg = 360.0 / 26.0;
+
+    // Turned exactly three slots clockwise: reads as the shifted word, and
+    // three manual turns undo it.
+    let img = rasterize(&slots, 300, 300, &Affine::place(150.0, 150.0, 120.0, 3.0 * slot_deg + 2.0), 0, 255);
+    let found = decode(&img, 1024);
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].text, "MVF");
+    assert_eq!(found[0].reading(3), "JSC");
+    assert_eq!(found[0].reading(0), found[0].text);
+
+    // A quarter turn sits between slots; the right word is still among the readings.
+    let img = rasterize(&slots, 300, 300, &Affine::place(150.0, 150.0, 120.0, 90.0), 0, 255);
+    let found = decode(&img, 1024);
+    assert_eq!(found.len(), 1);
+    let readings = found[0].readings();
+    assert_eq!(readings.len(), 26);
+    let turns = readings.iter().position(|w| w == "JSC").expect("JSC among readings");
+    assert!(turns == 6 || turns == 7, "quarter turn is 6.5 slots, got {turns}");
+}
+
+#[test]
+fn point_at_follows_the_code_into_image_coordinates() {
+    // Large enough to be downscaled before detection.
+    let slots = parse_word("RUST").unwrap();
+    let img = rasterize(&slots, 2400, 1800, &Affine::place(1300.0, 900.0, 500.0, 2.0), 0, 255);
+    let found = decode(&img, 1024);
+    assert_eq!(found.len(), 1);
+    let d = &found[0];
+    let outer = d.rings.last().unwrap();
+    let (x, y) = d.point_at(outer.gap_deg, 1.0);
+    let err = (x - outer.gap_point.0).hypot(y - outer.gap_point.1);
+    assert!(err < 1.0, "point_at off by {err:.2}px");
+    // 12 o'clock (after removing the measured rotation) is straight above the centre.
+    let (tx, ty) = d.point_at(d.rotation_deg, 1.0);
+    assert!((tx - 1300.0 - 500.0 * 2f64.to_radians().sin()).abs() < 8.0, "x {tx:.1}");
+    assert!((ty - (900.0 - 500.0)).abs() < 8.0, "y {ty:.1}");
+}
+
+#[test]
 fn reads_several_codes_in_one_image() {
     let mut img = rasterize(&parse_word("ONE").unwrap(), 640, 320, &Affine::place(160.0, 160.0, 120.0, 0.0), 0, 255);
     let two = rasterize(&parse_word("TWO").unwrap(), 640, 320, &Affine::place(480.0, 160.0, 120.0, 0.0), 0, 255);

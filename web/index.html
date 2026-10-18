@@ -41,6 +41,22 @@
         <div class="result" aria-live="polite">
           <div id="result-text" class="result-text">—</div>
           <div id="result-detail" class="result-detail">Nothing scanned yet.</div>
+          <div id="orientation" class="orientation" hidden>
+            <div class="orientation-row">
+              <span class="orientation-label">Orientation</span>
+              <div class="stepper">
+                <button id="turn-left" type="button" aria-label="Move the top one slot counter-clockwise" title="Move the top counter-clockwise ( [ or ← )">↺</button>
+                <output id="turn-value" aria-live="polite">As held</output>
+                <button id="turn-right" type="button" aria-label="Move the top one slot clockwise" title="Move the top clockwise ( ] or → )">↻</button>
+              </div>
+              <button id="turn-reset" type="button" class="quiet">Reset</button>
+            </div>
+            <p class="orientation-hint">
+              The arrow marks the top of the code. If you can't tell which way is up, pick the reading that makes
+              sense: every rotation of a code is one of these.
+            </p>
+            <div id="readings" class="readings" aria-label="All readings"></div>
+          </div>
         </div>
       </section>
 
@@ -85,7 +101,8 @@
             </p>
             <p>
               The scanner finds rings by their shape, corrects for camera tilt, and snaps every gap to the nearest
-              slot. Like reading a clock, it needs the code roughly upright (within about 7°).
+              slot. Like reading a clock, it has to know which way is up. It assumes the code is upright; if it
+              isn't, turn the reading with the orientation controls or pick from all 26 possible readings.
             </p>
             <p class="muted">
               Everything runs in your browser in Rust compiled to WebAssembly. Images and camera frames never leave

@@ -19,8 +19,13 @@ Because the inner/outer ratio is fixed, no subset of a code's rings is itself a
 valid code, so a ring that goes undetected makes a scan fail instead of reading a
 shorter word.
 
-Like a clock face, codes have to be roughly upright: anything within half a slot
-(about ±6.9°) snaps to the right letters.
+Like a clock face, a code only reads correctly if you know which way is up. The
+scanner assumes upright and tolerates half a slot (about ±6.9°) of error. Because
+a code's gaps always sit a whole number of slots apart, rotating a code only
+shifts every letter by the same amount, so any rotation reads as one of 26 words.
+The app lets you fix the orientation by hand: step the top round one slot at a
+time (buttons, `[` `]` or arrow keys), or pick from the list of all 26 readings.
+An arrow on the overlay shows where the code's top is assumed to be.
 
 ## How detection works
 
