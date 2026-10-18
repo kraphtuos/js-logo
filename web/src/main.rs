@@ -117,8 +117,17 @@ struct App {
     found: Vec<Detection>,
     /// The current still image without overlay, for redrawing after a turn.
     still: Option<ImageData>,
+    /// The camera frame (at decode size, without overlay) that `found` was read
+    /// from, kept so stopping the camera can freeze on it.
+    live_frame: Option<LiveFrame>,
     /// What the readings list currently shows, to avoid rebuilding it every frame.
     readings_key: String,
+}
+
+struct LiveFrame {
+    rgba: Vec<u8>,
+    width: u32,
+    height: u32,
 }
 
 type Shared = Rc<RefCell<App>>;
@@ -170,6 +179,7 @@ fn start() -> Result<(), JsValue> {
         turns: 0,
         found: Vec::new(),
         still: None,
+        live_frame: None,
         readings_key: String::new(),
     }));
     wire_events(&app);
@@ -377,13 +387,16 @@ async fn start_camera(app: &Shared) -> Result<(), JsValue> {
     let session = {
         let mut a = app.borrow_mut();
         a.stream = Some(stream);
+        // A fresh scan: forget any still image and what was read from it.
         a.still = None;
+        a.live_frame = None;
+        a.found.clear();
+        a.last_text = None;
+        a.el.orientation.set_hidden(true);
         a.camera_session += 1;
         a.el.camera.set_text_content(Some("Stop camera"));
         a.el.placeholder.set_hidden(true);
-        if a.last_text.is_none() {
-            a.set_result("—", "Looking for a ringcode…");
-        }
+        a.set_result("—", "Looking for a ringcode…");
         a.camera_session
     };
     run_frame_loop(app.clone(), session);
@@ -398,6 +411,7 @@ fn stop_camera(app: &Shared) {
         }
         a.el.video.set_src_object(None);
         a.el.camera.set_text_content(Some("Start camera"));
+        a.freeze_last_reading();
     }
 }
 
@@ -511,10 +525,30 @@ impl App {
         }
         self.work_ctx.draw_image_with_html_video_element_and_dw_and_dh(video, 0.0, 0.0, pw as f64, ph as f64)?;
         let pixels = self.work_ctx.get_image_data(0.0, 0.0, pw as f64, ph as f64)?.data();
-        self.found = ringcode::decode_rgba(&pixels, pw as usize, ph as usize);
-        draw_overlay(&self.screen_ctx, &self.found, 1.0 / scale, self.turns);
-        self.report(true);
+        let found = ringcode::decode_rgba(&pixels, pw as usize, ph as usize);
+        draw_overlay(&self.screen_ctx, &found, 1.0 / scale, self.turns);
+        // Frames that miss the code keep the last reading (and its frame), so
+        // the result and the turn controls stay usable between hits.
+        if !found.is_empty() {
+            self.found = found;
+            self.live_frame = Some(LiveFrame { rgba: pixels.0, width: pw, height: ph });
+            self.report(true);
+        }
         Ok(())
+    }
+
+    /// After the camera stops, shows the frame of the last reading as a still
+    /// image, so its overlay stays visible and the turn controls keep working.
+    fn freeze_last_reading(&mut self) {
+        let Some(frame) = self.live_frame.take() else { return };
+        let Ok(image) = ImageData::new_with_u8_clamped_array_and_sh(Clamped(&frame.rgba), frame.width, frame.height)
+        else {
+            return;
+        };
+        self.el.screen.set_width(frame.width);
+        self.el.screen.set_height(frame.height);
+        self.still = Some(image);
+        self.redraw_still();
     }
 
     /// Shows a still image on the stage and decodes it. `draw` paints the
