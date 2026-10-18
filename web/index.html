@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      name="description"
+      content="Scan and create ringcodes: short words written as concentric gapped rings, like the Jane Street logo (JSC). Runs in your browser with Rust and WebAssembly."
+    />
+    <meta name="color-scheme" content="light dark" />
+    <title>Ringcode</title>
+    <link data-trunk rel="rust" href="Cargo.toml" data-wasm-opt="3" />
+    <link data-trunk rel="css" href="style.css" />
+    <link data-trunk rel="icon" href="favicon.svg" />
+  </head>
+  <body>
+    <header class="top">
+      <div class="brand">
+        <span id="brand-mark" class="brand-mark" aria-hidden="true"></span>
+        <h1>Ringcode</h1>
+      </div>
+      <nav class="tabs" role="tablist" aria-label="Mode">
+        <button id="tab-scan" role="tab" aria-selected="true" aria-controls="view-scan">Scan</button>
+        <button id="tab-create" role="tab" aria-selected="false" aria-controls="view-create">Create</button>
+      </nav>
+    </header>
+
+    <main>
+      <section id="view-scan" role="tabpanel" aria-labelledby="tab-scan">
+        <div id="stage" class="stage">
+          <canvas id="screen" width="640" height="480"></canvas>
+          <div id="placeholder" class="placeholder">
+            <p>Point your camera at a ringcode, or open, drop or paste an image.</p>
+          </div>
+        </div>
+        <div class="controls">
+          <button id="camera" class="primary">Start camera</button>
+          <label class="button" for="file">Open image</label>
+          <input id="file" type="file" accept="image/*" hidden />
+        </div>
+        <div class="result" aria-live="polite">
+          <div id="result-text" class="result-text">—</div>
+          <div id="result-detail" class="result-detail">Nothing scanned yet.</div>
+        </div>
+      </section>
+
+      <section id="view-create" role="tabpanel" aria-labelledby="tab-create" hidden>
+        <div class="create-row">
+          <label class="field">
+            <span>Letters <small>2–5, A–Z</small></span>
+            <input
+              id="word"
+              value="JSC"
+              maxlength="5"
+              autocomplete="off"
+              autocapitalize="characters"
+              spellcheck="false"
+              inputmode="text"
+            />
+          </label>
+          <label class="check"><input id="show-dial" type="checkbox" checked /> Show letter dial</label>
+        </div>
+        <p id="word-error" class="error" hidden></p>
+        <div id="preview" class="preview"></div>
+        <div class="controls">
+          <button id="test-scan" class="primary">Scan it</button>
+          <button id="download-svg">Download SVG</button>
+          <button id="download-png">Download PNG</button>
+        </div>
+      </section>
+
+      <section class="about">
+        <h2>How it works</h2>
+        <div class="about-body">
+          <div id="about-dial" class="about-dial"></div>
+          <div>
+            <p>
+              A ringcode spells a short word with concentric rings, one letter per ring, read from the inside out. Each
+              ring has a single gap, and the gap points at its letter on a dial of 26 slots, with A at 12 o'clock and
+              the rest running clockwise.
+            </p>
+            <p>
+              The format comes from the Jane Street logo, which is the three-ring code for <strong>JSC</strong>, Jane
+              Street Capital. Ring sizes, thicknesses and gap widths follow the logo.
+            </p>
+            <p>
+              The scanner finds rings by their shape, corrects for camera tilt, and snaps every gap to the nearest
+              slot. Like reading a clock, it needs the code roughly upright (within about 7°).
+            </p>
+            <p class="muted">
+              Everything runs in your browser in Rust compiled to WebAssembly. Images and camera frames never leave
+              your device.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <video id="video" playsinline muted hidden></video>
+  </body>
+</html>
