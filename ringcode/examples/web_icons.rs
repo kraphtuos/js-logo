@@ -4,8 +4,8 @@ use ringcode::render::{rasterize, Affine};
 use ringcode::spec;
 
 const WORD: &str = "RC";
-const BACKGROUND: [u8; 3] = [0x0f, 0x11, 0x15];
-const RINGS: [u8; 3] = [0x1f, 0xc4, 0x93];
+const BACKGROUND: [u8; 3] = [0xff, 0xff, 0xff];
+const RINGS: [u8; 3] = [0x00, 0x00, 0x00];
 
 /// How an icon is laid out, as fractions of its size.
 struct Layout {

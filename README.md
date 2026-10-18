@@ -69,3 +69,6 @@ The app is an installable PWA (`web/manifest.webmanifest`). `web/sw.js` makes it
 work offline after the first visit: pages are fetched network-first, trunk's
 content-hashed assets are cached permanently, and assets from older builds are
 pruned when a new page arrives.
+
+`web/icon.svg` is published as-is (not content-hashed), so it has a stable URL
+next to the app, e.g. for linking to the icon from elsewhere.

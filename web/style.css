@@ -46,6 +46,17 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
+/* No double-tap zoom (e.g. tapping the turn buttons quickly on iOS); pinch zoom
+   still works. touch-action isn't inherited, so set it on everything tappable. */
+html,
+button,
+.button,
+summary,
+label,
+input {
+  touch-action: manipulation;
+}
+
 body {
   margin: 0;
   background: var(--bg);
