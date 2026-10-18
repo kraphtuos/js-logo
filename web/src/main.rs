@@ -173,7 +173,33 @@ fn start() -> Result<(), JsValue> {
     }));
     wire_events(&app);
     app.borrow().update_preview();
+    // The manifest's "Create a code" shortcut opens ./#create.
+    let window = web_sys::window().expect("window");
+    let follow_hash = move |app: &Shared| match window.location().hash().ok().as_deref() {
+        Some("#create") => select_tab(app, false),
+        Some("#scan") => select_tab(app, true),
+        _ => {}
+    };
+    follow_hash(&app);
+    let shared = app.clone();
+    on(&web_sys::window().expect("window"), "hashchange", move |_: Event| follow_hash(&shared));
+    register_service_worker();
     Ok(())
+}
+
+/// Registers sw.js for offline use. Service workers only exist in secure
+/// contexts (HTTPS or localhost), so this is skipped elsewhere.
+fn register_service_worker() {
+    let navigator = web_sys::window().expect("window").navigator();
+    if !Reflect::has(&navigator, &"serviceWorker".into()).unwrap_or(false) {
+        return;
+    }
+    let registration = navigator.service_worker().register("sw.js");
+    spawn_local(async move {
+        if let Err(e) = JsFuture::from(registration).await {
+            web_sys::console::warn_2(&"Service worker registration failed:".into(), &e);
+        }
+    });
 }
 
 fn wire_events(app: &Shared) {

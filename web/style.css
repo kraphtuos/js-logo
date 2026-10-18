@@ -65,8 +65,19 @@ main {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding-top: 16px;
+  padding-top: max(16px, env(safe-area-inset-top));
   padding-bottom: 16px;
+}
+
+/* Keep clear of notches and rounded corners when installed full screen. */
+.top,
+main {
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+}
+
+.about {
+  padding-bottom: max(48px, env(safe-area-inset-bottom));
 }
 
 .brand {
@@ -356,10 +367,6 @@ button.quiet {
   width: min(100%, 360px);
   height: auto;
   border-radius: 8px;
-}
-
-.about {
-  padding-bottom: 48px;
 }
 
 .about h2 {

@@ -47,7 +47,7 @@ An arrow on the overlay shows where the code's top is assumed to be.
 | Path | What |
 | --- | --- |
 | `ringcode/` | Core library: format spec, SVG and raster rendering, detector. No dependencies. |
-| `web/` | Browser app in Rust (`web-sys`), built with [trunk](https://trunkrs.dev). |
+| `web/` | Browser app in Rust (`web-sys`), built with [trunk](https://trunkrs.dev); PWA manifest, service worker and icons. |
 | `.github/workflows/pages.yml` | Tests, builds and deploys to GitHub Pages. |
 
 ## Development
@@ -57,7 +57,15 @@ cargo test -p ringcode                                   # unit + round-trip tes
 cargo run -p ringcode --example decode_file -- photo.jpg # decode images from the CLI
 cargo run -p ringcode --example svg -- HELLO > hello.svg # make a code
 
+cargo run -p ringcode --example web_icons -- web/icons   # regenerate the app icons
+
 cd web && trunk serve --open                             # app at http://127.0.0.1:8080
 ```
 
-The camera needs a secure context, which `localhost` and GitHub Pages both provide.
+The camera and the service worker need a secure context, which `localhost` and
+GitHub Pages both provide.
+
+The app is an installable PWA (`web/manifest.webmanifest`). `web/sw.js` makes it
+work offline after the first visit: pages are fetched network-first, trunk's
+content-hashed assets are cached permanently, and assets from older builds are
+pruned when a new page arrives.
