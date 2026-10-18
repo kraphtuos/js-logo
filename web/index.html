@@ -19,7 +19,9 @@
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
     <link data-trunk rel="rust" href="Cargo.toml" data-wasm-opt="3" />
     <link data-trunk rel="css" href="style.css" />
-    <link data-trunk rel="icon" href="favicon.svg" />
+    <!-- Not hashed by trunk, so icon.svg keeps a stable URL. -->
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link data-trunk rel="copy-file" href="icon.svg" />
     <link data-trunk rel="copy-file" href="manifest.webmanifest" />
     <link data-trunk rel="copy-file" href="sw.js" />
     <link data-trunk rel="copy-dir" href="icons" />

@@ -4,7 +4,7 @@
 // files of older builds are pruned whenever a fresh page arrives.
 
 const CACHE = "ringcode-v1";
-const STATIC = ["./", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png"];
+const STATIC = ["./", "manifest.webmanifest", "icon.svg", "icons/icon-192.png", "icons/icon-512.png"];
 const HASHED = /-[0-9a-f]{16}(_bg)?\.[a-z]+$/;
 
 self.addEventListener("install", (event) => {
