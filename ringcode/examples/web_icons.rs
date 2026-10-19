@@ -5,8 +5,9 @@ use ringcode::render::{rasterize, Affine};
 use ringcode::spec;
 
 const WORD: &str = "RC";
-const BACKGROUND: [u8; 3] = [0xff, 0xff, 0xff];
-const RINGS: [u8; 3] = [0x00, 0x00, 0x00];
+const WHITE: [u8; 3] = [0xff, 0xff, 0xff];
+const BLACK: [u8; 3] = [0x00, 0x00, 0x00];
+const NEAR_BLACK: [u8; 3] = [0x16, 0x17, 0x1a];
 
 /// How an icon is laid out, as fractions of its size.
 struct Layout {
@@ -14,6 +15,8 @@ struct Layout {
     code: f64,
     /// Corner radius of the background, or `None` for full bleed.
     corner: Option<f64>,
+    background: [u8; 3],
+    rings: [u8; 3],
 }
 
 /// Anti-aliased coverage of a rounded square filling the image.
@@ -44,8 +47,8 @@ fn icon(size: usize, layout: &Layout) -> image::RgbaImage {
         let (x, y) = (x as usize, y as usize);
         let bg = layout.corner.map_or(1.0, |c| rounded_square(size, c, x, y));
         let ring = rings.get(x, y) as f64 / 255.0;
-        let rgb: Vec<u8> =
-            (0..3).map(|i| (BACKGROUND[i] as f64 * (1.0 - ring) + RINGS[i] as f64 * ring).round() as u8).collect();
+        let (b, f) = (layout.background, layout.rings);
+        let rgb: Vec<u8> = (0..3).map(|i| (b[i] as f64 * (1.0 - ring) + f[i] as f64 * ring).round() as u8).collect();
         image::Rgba([rgb[0], rgb[1], rgb[2], (bg * 255.0).round() as u8])
     })
 }
@@ -64,11 +67,13 @@ fn main() {
     std::fs::write(&path, ringcode::svg(WORD, &options).expect("valid word") + "\n").expect("write icon.svg");
     println!("wrote {}", path.display());
 
-    let any = Layout { code: 0.36, corner: Some(CORNER) };
+    let any = Layout { code: 0.36, corner: Some(CORNER), background: WHITE, rings: BLACK };
     // Maskable icons may be cropped to a circle of radius 0.4; keep the code well inside it.
-    let maskable = Layout { code: 0.3, corner: None };
-    // iOS rounds the corners itself and does not want transparency.
-    let apple = Layout { code: 0.34, corner: None };
+    let maskable = Layout { code: 0.3, corner: None, background: WHITE, rings: BLACK };
+    // iOS rounds the corners itself and does not want transparency. It also uses this one
+    // icon in dark mode, where it swaps a light background for dark grey but keeps the
+    // foreground, so black-on-white rings vanish. Light rings on a dark tile survive both.
+    let apple = Layout { code: 0.34, corner: None, background: NEAR_BLACK, rings: WHITE };
     for (name, size, layout) in [
         ("icon-192.png", 192, &any),
         ("icon-512.png", 512, &any),
