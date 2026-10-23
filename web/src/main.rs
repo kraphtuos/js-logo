@@ -496,6 +496,17 @@ fn download_png(word: &str) -> Result<(), JsValue> {
 }
 
 impl App {
+    /// Sizes the screen canvas and gives the stage the same shape, so a
+    /// portrait camera or image isn't letterboxed into a landscape box.
+    /// `camera` frames fill the stage even when its height is capped; other
+    /// images are shown whole.
+    fn resize_screen(&self, width: u32, height: u32, camera: bool) {
+        self.el.screen.set_width(width);
+        self.el.screen.set_height(height);
+        let _ = self.el.stage.style().set_property("aspect-ratio", &format!("{width} / {height}"));
+        let _ = self.el.stage.class_list().toggle_with_force("camera", camera);
+    }
+
     fn set_result(&self, text: &str, detail: &str) {
         self.el.result_text.set_text_content(Some(text));
         self.el.result_detail.set_text_content(Some(detail));
@@ -511,9 +522,9 @@ impl App {
         if vw == 0 || vh == 0 {
             return Ok(());
         }
+        // Also catches the phone turning between portrait and landscape.
         if self.el.screen.width() != vw || self.el.screen.height() != vh {
-            self.el.screen.set_width(vw);
-            self.el.screen.set_height(vh);
+            self.resize_screen(vw, vh, true);
         }
         self.screen_ctx.draw_image_with_html_video_element(video, 0.0, 0.0)?;
 
@@ -545,8 +556,7 @@ impl App {
         else {
             return;
         };
-        self.el.screen.set_width(frame.width);
-        self.el.screen.set_height(frame.height);
+        self.resize_screen(frame.width, frame.height, true);
         self.still = Some(image);
         self.redraw_still();
     }
@@ -561,8 +571,7 @@ impl App {
     ) {
         let scale = (STILL_DISPLAY_SIZE / width.max(height)).min(1.0);
         let (dw, dh) = ((width * scale).round().max(1.0), (height * scale).round().max(1.0));
-        self.el.screen.set_width(dw as u32);
-        self.el.screen.set_height(dh as u32);
+        self.resize_screen(dw as u32, dh as u32, false);
         let ctx = &self.screen_ctx;
         // Transparent images read as dark-on-white.
         ctx.set_fill_style_str("#fff");
