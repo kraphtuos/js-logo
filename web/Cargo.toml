@@ -20,7 +20,6 @@ features = [
   "BlobPropertyBag",
   "CanvasRenderingContext2d",
   "ClipboardEvent",
-  "CssStyleDeclaration",
   "DataTransfer",
   "Document",
   "DomTokenList",
