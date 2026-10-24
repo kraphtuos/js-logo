@@ -137,14 +137,9 @@ section + section {
   margin-top: 32px;
 }
 
-/* The app sets aspect-ratio inline to match what's shown (4:3 until then).
-   The height cap keeps a portrait image from pushing the controls off screen;
-   svh ignores the browser bars that come and go. */
 .stage {
   position: relative;
   aspect-ratio: 4 / 3;
-  max-height: 72vh;
-  max-height: 72svh;
   background: var(--stage);
   border-radius: var(--radius);
   overflow: hidden;
@@ -155,12 +150,6 @@ section + section {
   width: 100%;
   height: 100%;
   object-fit: contain;
-}
-
-/* A capped camera view crops a little off the top and bottom rather than
-   leaving bars at the sides. */
-.stage.camera canvas {
-  object-fit: cover;
 }
 
 .placeholder {

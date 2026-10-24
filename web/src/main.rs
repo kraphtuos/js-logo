@@ -496,17 +496,6 @@ fn download_png(word: &str) -> Result<(), JsValue> {
 }
 
 impl App {
-    /// Sizes the screen canvas and gives the stage the same shape, so a
-    /// portrait camera or image isn't letterboxed into a landscape box.
-    /// `camera` frames fill the stage even when its height is capped; other
-    /// images are shown whole.
-    fn resize_screen(&self, width: u32, height: u32, camera: bool) {
-        self.el.screen.set_width(width);
-        self.el.screen.set_height(height);
-        let _ = self.el.stage.style().set_property("aspect-ratio", &format!("{width} / {height}"));
-        let _ = self.el.stage.class_list().toggle_with_force("camera", camera);
-    }
-
     fn set_result(&self, text: &str, detail: &str) {
         self.el.result_text.set_text_content(Some(text));
         self.el.result_detail.set_text_content(Some(detail));
@@ -522,19 +511,35 @@ impl App {
         if vw == 0 || vh == 0 {
             return Ok(());
         }
-        // Also catches the phone turning between portrait and landscape.
-        if self.el.screen.width() != vw || self.el.screen.height() != vh {
-            self.resize_screen(vw, vh, true);
+        // Crop the frame to the stage's shape (e.g. the middle of a portrait
+        // phone camera), so the stage is filled and only what's shown is
+        // scanned.
+        let (sw, sh) = (self.el.stage.client_width(), self.el.stage.client_height());
+        let aspect = if sw > 0 && sh > 0 { sw as f64 / sh as f64 } else { vw as f64 / vh as f64 };
+        let (cw, ch) = if vw as f64 / vh as f64 > aspect {
+            (((vh as f64 * aspect).round() as u32).clamp(1, vw), vh)
+        } else {
+            (vw, ((vw as f64 / aspect).round() as u32).clamp(1, vh))
+        };
+        let (cx, cy) = (((vw - cw) / 2) as f64, ((vh - ch) / 2) as f64);
+        if self.el.screen.width() != cw || self.el.screen.height() != ch {
+            self.el.screen.set_width(cw);
+            self.el.screen.set_height(ch);
         }
-        self.screen_ctx.draw_image_with_html_video_element(video, 0.0, 0.0)?;
+        let (cw, ch) = (cw as f64, ch as f64);
+        self.screen_ctx.draw_image_with_html_video_element_and_sw_and_sh_and_dx_and_dy_and_dw_and_dh(
+            video, cx, cy, cw, ch, 0.0, 0.0, cw, ch,
+        )?;
 
-        let scale = (FRAME_DECODE_SIZE / vw.max(vh) as f64).min(1.0);
-        let (pw, ph) = ((vw as f64 * scale).round() as u32, (vh as f64 * scale).round() as u32);
+        let scale = (FRAME_DECODE_SIZE / cw.max(ch)).min(1.0);
+        let (pw, ph) = ((cw * scale).round() as u32, (ch * scale).round() as u32);
         if self.work.width() != pw || self.work.height() != ph {
             self.work.set_width(pw);
             self.work.set_height(ph);
         }
-        self.work_ctx.draw_image_with_html_video_element_and_dw_and_dh(video, 0.0, 0.0, pw as f64, ph as f64)?;
+        self.work_ctx.draw_image_with_html_video_element_and_sw_and_sh_and_dx_and_dy_and_dw_and_dh(
+            video, cx, cy, cw, ch, 0.0, 0.0, pw as f64, ph as f64,
+        )?;
         let pixels = self.work_ctx.get_image_data(0.0, 0.0, pw as f64, ph as f64)?.data();
         let found = ringcode::decode_rgba(&pixels, pw as usize, ph as usize);
         draw_overlay(&self.screen_ctx, &found, 1.0 / scale, self.turns);
@@ -556,7 +561,8 @@ impl App {
         else {
             return;
         };
-        self.resize_screen(frame.width, frame.height, true);
+        self.el.screen.set_width(frame.width);
+        self.el.screen.set_height(frame.height);
         self.still = Some(image);
         self.redraw_still();
     }
@@ -571,7 +577,8 @@ impl App {
     ) {
         let scale = (STILL_DISPLAY_SIZE / width.max(height)).min(1.0);
         let (dw, dh) = ((width * scale).round().max(1.0), (height * scale).round().max(1.0));
-        self.resize_screen(dw as u32, dh as u32, false);
+        self.el.screen.set_width(dw as u32);
+        self.el.screen.set_height(dh as u32);
         let ctx = &self.screen_ctx;
         // Transparent images read as dark-on-white.
         ctx.set_fill_style_str("#fff");
