@@ -22,7 +22,8 @@ use web_sys::{
 const FRAME_DECODE_SIZE: f64 = 640.0;
 /// Still images are displayed at most this large (long side).
 const STILL_DISPLAY_SIZE: f64 = 1600.0;
-/// Overlay colour; matches `--accent` in style.css.
+/// Overlay colour, drawn over the camera feed in both themes. Brighter than the
+/// light theme's `--accent`, which is darkened for text contrast.
 const ACCENT: &str = "#00a676";
 
 fn main() {
